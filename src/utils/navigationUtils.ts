@@ -95,7 +95,7 @@ export async function handleNavigation({
         (currentTab === "perception" && perceptionState === "component") ||
         (currentTab === "comprehension" && comprehensionState === "component") ||
         (currentTab === "comprehension" && comprehensionState === "section") ||
-        (currentTab === "projection" && projectionState === "heuristic")  ||
+        (currentTab === "projection" && projectionState === "heuristic") ||
         (currentTab === "projection" && projectionState === "results") ||
         (currentTab === "review")
       );
@@ -108,8 +108,8 @@ export async function handleNavigation({
       }
       // '이전' 버튼 로직
       if (currentTab === "comprehension" && comprehensionState === "component") { // step 3
-        setCurrentTab("perception"); 
-        setPerceptionState("component"); 
+        setCurrentTab("perception");
+        setPerceptionState("component");
       } else if (currentTab === "projection" && projectionState === "heuristic") { // step 5
         setCurrentTab("comprehension");
         setComprehensionState("section");
@@ -117,7 +117,7 @@ export async function handleNavigation({
         setCurrentTab("projection");
         setProjectionState("results");
       } else if (currentTab === "perception" && perceptionState === "component") { // step 2
-        setCurrentTab("perception"); 
+        setCurrentTab("perception");
         setPerceptionState("section");
       } else if (currentTab === "comprehension" && comprehensionState === "section") { // step 4
         setCurrentTab("comprehension");
@@ -131,7 +131,7 @@ export async function handleNavigation({
       // '다음' 버튼 로직
       const state = useUICritiqueStore.getState();
       const API_BASE = (typeof window !== 'undefined' && !process.env.NEXT_PUBLIC_API_BASE && window.location.hostname === 'localhost')
-        ? 'http://localhost:8000'
+        ? 'http://34.64.194.66:8000'
         : (process.env.NEXT_PUBLIC_API_BASE || '');
 
       // Step 1 -> 2

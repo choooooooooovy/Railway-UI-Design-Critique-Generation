@@ -5,9 +5,9 @@ import TargetPanelBaseline from '../../components/TargetPanelBaseline';
 
 const API_BASE =
   typeof window !== 'undefined' &&
-  !process.env.NEXT_PUBLIC_API_BASE &&
-  window.location.hostname === 'localhost'
-    ? 'http://localhost:8000'
+    !process.env.NEXT_PUBLIC_API_BASE &&
+    window.location.hostname === 'localhost'
+    ? 'http://34.64.194.66:8000'
     : process.env.NEXT_PUBLIC_API_BASE || '';
 
 export default function BaselinePage() {

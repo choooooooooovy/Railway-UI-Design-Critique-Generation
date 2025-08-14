@@ -25,16 +25,16 @@ export default function TargetPanel() {
   useEffect(() => {
     const API_BASE =
       typeof window !== "undefined" &&
-      !process.env.NEXT_PUBLIC_API_BASE &&
-      window.location.hostname === "localhost"
-        ? "http://localhost:8000"
+        !process.env.NEXT_PUBLIC_API_BASE &&
+        window.location.hostname === "localhost"
+        ? "http://34.64.194.66:8000"
         : process.env.NEXT_PUBLIC_API_BASE || "";
 
     // 진단 로그
     console.log("[TargetPanel] API_BASE:", API_BASE || "(same-origin)");
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000); 
+    const timeout = setTimeout(() => controller.abort(), 60000);
 
     fetch(`${API_BASE}/api/constants/`, { signal: controller.signal })
       .then((res) => {
@@ -74,9 +74,9 @@ export default function TargetPanel() {
         formData.append("task", taskDescription);
         const API_BASE =
           typeof window !== "undefined" &&
-          !process.env.NEXT_PUBLIC_API_BASE &&
-          window.location.hostname === "localhost"
-            ? "http://localhost:8000"
+            !process.env.NEXT_PUBLIC_API_BASE &&
+            window.location.hostname === "localhost"
+            ? "http://34.64.194.66:8000"
             : process.env.NEXT_PUBLIC_API_BASE || "";
         const res = await fetch(`${API_BASE}/api/step1/`, {
           method: "POST",

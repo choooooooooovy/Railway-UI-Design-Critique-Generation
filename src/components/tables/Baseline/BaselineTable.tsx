@@ -37,11 +37,11 @@ export const BaselineTable: React.FC<BaselineTableProps> = (props) => {
       setParsedData([]);
       return;
     }
-  let cleaned = props.baselineResult;
-  // 중첩된 '-' 제거: component 아래에 - expected_standard 등 있으면 한 번만 남기고 제거
-  cleaned = cleaned.replace(/(\n\s*-\s*(expected_standard|identified_gap|proposed_fix):)/g, (match) => match.replace('-',''));
-  // 들여쓰기 교정: 각 필드가 2칸 들여쓰기로 시작하도록 변환
-  cleaned = cleaned.replace(/^(\s{3,})(expected_standard|identified_gap|proposed_fix):/gm, '  $2:');
+    let cleaned = props.baselineResult;
+    // 중첩된 '-' 제거: component 아래에 - expected_standard 등 있으면 한 번만 남기고 제거
+    cleaned = cleaned.replace(/(\n\s*-\s*(expected_standard|identified_gap|proposed_fix):)/g, (match) => match.replace('-', ''));
+    // 들여쓰기 교정: 각 필드가 2칸 들여쓰기로 시작하도록 변환
+    cleaned = cleaned.replace(/^(\s{3,})(expected_standard|identified_gap|proposed_fix):/gm, '  $2:');
     try {
       // Try JSON first
       arr = JSON.parse(cleaned);
@@ -74,9 +74,9 @@ export const BaselineTable: React.FC<BaselineTableProps> = (props) => {
       }
       const API_BASE =
         typeof window !== 'undefined' &&
-        !process.env.NEXT_PUBLIC_API_BASE &&
-        window.location.hostname === 'localhost'
-          ? 'http://localhost:8000'
+          !process.env.NEXT_PUBLIC_API_BASE &&
+          window.location.hostname === 'localhost'
+          ? 'http://34.64.194.66:8000'
           : process.env.NEXT_PUBLIC_API_BASE || '';
       const res = await fetch(`${API_BASE}/api/baseline`, {
         method: 'POST',
@@ -127,7 +127,7 @@ export const BaselineTable: React.FC<BaselineTableProps> = (props) => {
 
 
   return (
-  <div className="flex flex-col h-full p-4 bg-gray-50 rounded-lg" style={{ fontFamily: 'IBM Plex Sans, IBM Plex Sans KR, sans-serif' }}>
+    <div className="flex flex-col h-full p-4 bg-gray-50 rounded-lg" style={{ fontFamily: 'IBM Plex Sans, IBM Plex Sans KR, sans-serif' }}>
       <div className="flex-1 overflow-y-auto mb-4">
         {updateSuccess && (
           <div className="w-full flex flex-col items-center justify-center py-2 text-green-600 text-sm font-semibold" style={{ fontFamily: 'IBM Plex Sans, IBM Plex Sans KR, sans-serif' }}>

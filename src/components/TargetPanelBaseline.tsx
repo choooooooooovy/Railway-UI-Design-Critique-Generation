@@ -22,7 +22,7 @@ export default function TargetPanelBaseline({ setTask, setRicoId, onBaselineFetc
 
   useEffect(() => {
     const API_BASE = (typeof window !== 'undefined' && !process.env.NEXT_PUBLIC_API_BASE && window.location.hostname === 'localhost')
-      ? 'http://localhost:8000'
+      ? 'http://34.64.194.66:8000'
       : (process.env.NEXT_PUBLIC_API_BASE || '');
     fetch(`${API_BASE}/api/constants/`)
       .then(res => res.json())

@@ -1,11 +1,18 @@
+from fastapi import FastAPI, APIRouter
+
+app = FastAPI()
+api = APIRouter(prefix="/api")
+
 import base64
 import shutil
 import uuid
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import yaml
 import os
+import json
 from dotenv import load_dotenv
 load_dotenv(".env.local")
 
@@ -15,12 +22,63 @@ try:
     from autogen.agentchat.contrib.multimodal_conversable_agent import MultimodalConversableAgent
     from autogen import UserProxyAgent
     AUTOGEN_AVAILABLE = True
-except Exception:
+except Exception as e:
+    print("[ERROR] Autogen import failed:", e)
     autogen = None  # type: ignore
     MultimodalConversableAgent = None  # type: ignore
     UserProxyAgent = None  # type: ignore
     AUTOGEN_AVAILABLE = False
 
+# --------- 헬스체크/진단 ----------
+@api.get("/healthz")
+def healthz():
+    return {"ok": True}
+
+def _try_import_pil():
+    try:
+        import PIL  # noqa
+        return True
+    except Exception:
+        return False
+
+@api.get("/diag")
+def diag():
+    try:
+        c4 = len(config_list_4v)  # type: ignore[name-defined]
+    except Exception:
+        c4 = 0
+    try:
+        co3 = len(config_list_o3)  # type: ignore[name-defined]
+    except Exception:
+        co3 = 0
+    return {
+        "has_openai_key": bool(os.getenv("OPENAI_API_KEY")),
+        "has_oai_config": bool(os.getenv("OAI_CONFIG_LIST_JSON")),
+        "pil_import_ok": _try_import_pil(),
+        "autogen_available": AUTOGEN_AVAILABLE,
+        "config_4v_count": c4,
+        "config_o3_count": co3,
+    }
+
+
+# --- CORS 미들웨어 설정 추가 ---
+# 허용할 출처(프론트엔드 주소) 목록
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://critic-mate-kor.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve Next.js public/stores images from the backend as well (for Render domain)
+stores_dir = os.path.join(os.getcwd(), "public", "stores")
+if os.path.isdir(stores_dir):
+    app.mount("/stores", StaticFiles(directory=stores_dir), name="stores")
 
 # Safe import for logging utilities (fallback to no-ops if missing)
 try:
@@ -59,12 +117,10 @@ except Exception:
 from fastapi import Request
 import httpx
 
-app = FastAPI()
+guideline_update_cache: dict = {}
 
 # Support both /api/log-user-action and legacy path
-@app.post("/api/log-user-action/")
-@app.post("/api/log-user-action")
-@app.post("/log-user-action")
+@api.post("/log-user-action")
 async def log_user_action_api(request: Request):
     try:
         data = await request.json()
@@ -77,19 +133,13 @@ async def log_user_action_api(request: Request):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
     
+# Trailing-slash alias to avoid 404 from clients posting to '/api/log-user-action/'
+@api.post("/log-user-action/")
+async def log_user_action_api_slash(request: Request):
+    return await log_user_action_api(request)
+    
 from pydantic import BaseModel
 from typing import Dict, Any, List
-
-# --- CORS 미들웨어 설정 추가 ---
-# 허용할 출처(프론트엔드 주소) 목록
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Vercel 배포를 위해 모든 도메인 허용
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-# --- 설정 추가 끝 ---
 
 
 # Pydantic 모델 정의
@@ -124,16 +174,17 @@ if AUTOGEN_AVAILABLE:
             config_list_o3 = [{"model": "o3-mini", "api_key": openai_key}]
         else:
             # Optional fallback: use JSON file if path provided via env
-            CONFIG_JSON_PATH = os.getenv("OAI_CONFIG_LIST_JSON")
-            if CONFIG_JSON_PATH:
-                config_list_4v = autogen.config_list_from_json(
-                    CONFIG_JSON_PATH,
-                    filter_dict={"model": ["gpt-4o"]},
-                )
-                config_list_o3 = autogen.config_list_from_json(
-                    CONFIG_JSON_PATH,
-                    filter_dict={"model": ["o3-mini"]},
-                )
+            import json
+            CONFIG_JSON = os.getenv("OAI_CONFIG_LIST_JSON")
+            if CONFIG_JSON:
+                try:
+                    config_json = json.loads(CONFIG_JSON)
+                    config_list_4v = [c for c in config_json if "gpt-4o" in c.get("model", "")]
+                    config_list_o3 = [c for c in config_json if "o3-mini" in c.get("model", "")]
+                except Exception as e:
+                    print("Config JSON load error:", e)
+                    config_list_4v = []
+                    config_list_o3 = []
         if not config_list_4v or not config_list_o3:
             raise RuntimeError("LLM config missing: set OPENAI_API_KEY or OAI_CONFIG_LIST_JSON")
 
@@ -166,12 +217,12 @@ async def _get_public_image_base64(request: Request, filename: str) -> str:
     primary_url = f"{base}/stores/{filename}"
     candidate_urls = [primary_url]
     # Local dev: FastAPI runs on :8000 and Next.js serves /stores on :3000
-    if "localhost:8000" in base or "127.0.0.1:8000" in base:
-        candidate_urls = [
-            f"http://localhost:3000/stores/{filename}",
-            f"http://127.0.0.1:3000/stores/{filename}",
-            primary_url,
-        ]
+    
+    candidate_urls = [
+        f"https://ui-design-critique-generation.vercel.app/stores/{filename}",
+        f"https://ui-design-critique-generation.vercel.app/stores/{filename}",
+        primary_url,
+    ]
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             last_err = None
@@ -188,9 +239,7 @@ async def _get_public_image_base64(request: Request, filename: str) -> str:
         raise HTTPException(status_code=404, detail=f"Failed to fetch image from candidates: {candidate_urls}. Error: {e}")
 
 # Add '/api/' prefix variants for all step endpoints to match frontend fetch paths and Vercel routing
-@app.post("/api/step1/")
-@app.post("/api/step1")
-@app.post("/step1/")
+@api.post("/step1")
 async def step1(request: Request, task: str = Form(...), image_filename: str = Form("") ):
     # Guard for missing LLM config
     if user_proxy is None or not llm_config:
@@ -294,9 +343,7 @@ async def step1(request: Request, task: str = Form(...), image_filename: str = F
     }
 
 
-@app.post("/api/step2/")
-@app.post("/api/step2")
-@app.post("/step2/")
+@api.post("/step2")
 async def step2(request: Request, request_body: Step2Request):
     if user_proxy is None or not llm_config:
         return JSONResponse(status_code=503, content={"error": "LLM config missing on server."})
@@ -390,9 +437,7 @@ Identify all UI components within the '{section_name}' section from the given UI
 
 
 
-@app.post("/api/step3/")
-@app.post("/api/step3")
-@app.post("/step3/")
+@api.post("/step3")
 async def step3(request: Request, request_body: Step3Request):
     if user_proxy is None or not llm_config:
         return JSONResponse(status_code=503, content={"error": "LLM config missing on server."})
@@ -506,9 +551,7 @@ async def step3(request: Request, request_body: Step3Request):
 
 # --- Step 4 엔드포인트 수정 ---
 
-@app.post("/api/step4/")
-@app.post("/api/step4")
-@app.post("/step4/")
+@api.post("/step4")
 async def step4_endpoint(request: Request, request_body: Step4Request):
     if user_proxy is None or not llm_config:
         return JSONResponse(status_code=503, content={"error": "LLM config missing on server."})
@@ -608,11 +651,7 @@ async def step4_endpoint(request: Request, request_body: Step4Request):
     return {"result": step4_results}
 
 
-
-
-@app.post("/api/step5_6/")
-@app.post("/api/step5_6")
-@app.post("/step5_6/")
+@api.post("/step5_6")
 async def step5_6_endpoint(
     task: str = Form(...),
     image_base64: str = Form(...),
@@ -813,9 +852,7 @@ async def step5_6_endpoint(
     return {"step5_result": step5_result, "step6_result": step6_results}
 
 
-@app.post("/api/step7/")
-@app.post("/api/step7")
-@app.post("/step7/")
+@api.post("/step7")
 async def step7_endpoint(
     task: str = Form(...),
     step3_results_str: str = Form(...),
@@ -1018,9 +1055,7 @@ async def step7_endpoint(
         return JSONResponse(status_code=500, content={"error": f"Error in Step 7: {str(e)}"})
 
 
-@app.post("/api/update_guidelines/")
-@app.post("/api/update_guidelines")
-@app.post("/update_guidelines/")
+@api.post("/update_guidelines")
 async def update_guidelines(
     user_update: str = Form(...), 
     default_guidelines: str = Form(...),
@@ -1178,14 +1213,9 @@ guidelines:
         print(f"Error during guideline update: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.post("/api/baseline/")
-@app.post("/api/baseline")
-@app.post("/baseline/")
-@app.get("/api/baseline/")
-@app.get("/api/baseline")
-@app.get("/baseline/")
+@api.get("/baseline")
+@api.post("/baseline")
 async def baseline_endpoint(request: Request, task: str = Form(None), rico_id: str = Form(None), guidelines_str: str = Form(None)):
-    import os
     from datetime import datetime
     def log_baseline_update(user_id, before, after, note, initial=False):
         log_dir = os.path.join(os.getcwd(), "logs", "_baseline")
@@ -1348,15 +1378,12 @@ The output must be a complete, well-formed YAML mapping.
     return parsed
 
 # Optional GET for smoke test (POST is used for actual logging)
-@app.get("/api/log-user-action")
-@app.get("/api/log-user-action/")
-@app.get("/log-user-action")
+@api.get("/log-user-action")
 async def log_user_action_get():
     return {"status": "ok"}
 
 # Constants endpoint used by TargetPanel to bootstrap image/task
-@app.get("/api/constants")
-@app.get("/api/constants/")
+@api.get("/constants")
 async def get_constants():
     try:
         return {
@@ -1368,5 +1395,4 @@ async def get_constants():
         # Always return JSON to avoid Unexpected token errors on client
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-# Vercel handler
-handler = app
+app.include_router(api)

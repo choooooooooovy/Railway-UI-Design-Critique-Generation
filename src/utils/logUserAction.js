@@ -10,13 +10,13 @@ export async function logTableEditSnapshot({ tableName, state, when }) {
 // API base URL ('' for same-origin in production). In dev, set NEXT_PUBLIC_API_BASE=http://localhost:8000
 // If not set and running on localhost, default to FastAPI port 8000
 const API_BASE = (typeof window !== 'undefined' && !process.env.NEXT_PUBLIC_API_BASE && window.location.hostname === 'localhost')
-  ? 'http://localhost:8000'
-  : (process.env.NEXT_PUBLIC_API_BASE || '');
+    ? 'http://34.64.194.66:8000'
+    : (process.env.NEXT_PUBLIC_API_BASE || '');
 
 // API endpoint for logging
 const LOG_API_URL = `${API_BASE}/api/log-user-action/`;
 
-export async function logUserAction({action_type, content, details = {} }) {
+export async function logUserAction({ action_type, content, details = {} }) {
     const logEntry = {
         timestamp: new Date().toISOString(),
         // userId,
